@@ -1,0 +1,8 @@
+{
+  "name": "AI Object Inspector",
+  "description": "Upload an image or use your camera to identify objects and estimate their worth using AI. This application leverages Gemini API for object recognition and valuation.",
+  "requestFramePermissions": [
+    "camera"
+  ],
+  "prompt": ""
+}

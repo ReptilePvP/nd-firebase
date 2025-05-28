@@ -1,0 +1,29 @@
+{
+  "name": "ndresells-firebase-functions",
+  "description": "Cloud Functions for NDResells App",
+  "version": "0.0.1",
+  "private": true,
+  "main": "lib/index.js",
+  "engines": {
+    "node": "20"
+  },
+  "scripts": {
+    "build": "tsc",
+    "serve": "firebase emulators:start --only functions",
+    "shell": "firebase functions:shell",
+    "start": "npm run shell",
+    "deploy": "firebase deploy --only functions",
+    "logs": "firebase functions:log"
+  },
+  "dependencies": {
+    "@google/genai": "^1.0.1",
+    "cors": "^2.8.5",
+    "firebase-admin": "^13.4.0",
+    "firebase-functions": "^6.3.2"
+  },
+  "devDependencies": {
+    "@types/cors": "^2.8.17",
+    "firebase-functions-test": "^3.1.0",
+    "typescript": "^5.3.3"
+  }
+}

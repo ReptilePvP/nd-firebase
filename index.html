@@ -1,0 +1,82 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>NDResells - AI Product Analyzer</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    body {
+      font-family: 'Inter', sans-serif;
+    }
+    /* Custom scrollbar styling for a dark theme */
+    ::-webkit-scrollbar {
+      width: 10px;
+      height: 10px;
+    }
+    ::-webkit-scrollbar-track {
+      background: #020617; /* Even darker for track (slate-950 or similar) */
+    }
+    ::-webkit-scrollbar-thumb {
+      background: #334155; /* Muted thumb color (slate-700) */
+      border-radius: 5px;
+      border: 2px solid #020617; /* Creates padding around thumb */
+    }
+    ::-webkit-scrollbar-thumb:hover {
+      background: #475569; /* Lighter thumb on hover (slate-600) */
+    }
+    /* For Firefox */
+    html {
+      scrollbar-width: thin;
+      scrollbar-color: #334155 #020617;
+    }
+
+    /* Smooth scroll behavior */
+    html {
+        scroll-behavior: smooth;
+    }
+    /* Base transition for elements */
+    .transition-default {
+        transition-property: all;
+        transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
+        transition-duration: 300ms;
+    }
+
+    /* Simple fade-in animation */
+    @keyframes fadeIn {
+        from { opacity: 0; transform: translateY(10px); }
+        to { opacity: 1; transform: translateY(0); }
+    }
+    .animate-fadeIn {
+        animation: fadeIn 0.5s ease-out forwards;
+    }
+
+    /* Subtle pulse for loading text */
+    @keyframes pulseOpacity {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.7; }
+    }
+    .animate-pulseOpacity {
+      animation: pulseOpacity 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+    }
+
+  </style>
+<script type="importmap">
+{
+  "imports": {
+    "react-dom/": "https://esm.sh/react-dom@^19.1.0/",
+    "@google/genai": "https://esm.sh/@google/genai@^1.0.1",
+    "react/": "https://esm.sh/react@^19.1.0/",
+    "react": "https://esm.sh/react@^19.1.0",
+    "firebase-functions/": "https://esm.sh/firebase-functions@^6.3.2/",
+    "cors": "https://esm.sh/cors@^2.8.5"
+  }
+}
+</script>
+</head>
+<body class="bg-slate-900 text-slate-200">
+  <div id="root"></div>
+  <script type="module" src="/index.tsx"></script>
+</body>
+</html><link rel="stylesheet" href="index.css">
+<script src="index.tsx" type="module"></script>
