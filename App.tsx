@@ -2,19 +2,20 @@ import React, { useState, useEffect, useCallback } from 'react';
 import ImageUploader from './components/ImageUploader';
 import ResultDisplay from './components/ResultDisplay';
 import Spinner from './components/Spinner';
-// SettingsPage is no longer needed
+import LoginScreen from './components/LoginScreen';
+import HistoryPage from './components/HistoryPage';
 import { ProductAnalysisResult, GroundingMetadata } from './types'; 
 import Icon, { 
   NDResellsLogoIconPath, 
   HistoryIconPath, 
   PriceTagIconPath, 
   AnalyzeItemIconPath, 
-  // SettingsIconPath no longer needed in header
   AiRecognitionIconSymbolPath,
   MarketAnalysisIconSymbolPath,
   ResaleInsightsIconSymbolPath
 } from './components/Icon';
-import { analyzeImageViaServer } from './services/geminiService'; // Updated service call
+import { analyzeImageViaServer } from './services/geminiService';
+import { onAuthChange, logout, User } from './services/firebaseService';
 
 // API Key storage key no longer needed
 // const GEMINI_API_KEY_STORAGE_KEY = 'geminiApiKey';
@@ -34,15 +35,17 @@ const App: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
 
-  // API Key state and settings modal state are no longer needed
-  // const [geminiApiKey, setGeminiApiKey] = useState<string | null>(null);
-  // const [isSettingsOpen, setIsSettingsOpen] = useState<boolean>(false);
   const [showResultsInPanel, setShowResultsInPanel] = useState<boolean>(false);
+  const [currentUser, setCurrentUser] = useState<User | null>(null);
+  const [isLoggingOut, setIsLoggingOut] = useState<boolean>(false);
+  const [showHistory, setShowHistory] = useState<boolean>(false);
 
   useEffect(() => {
-    // No API key to load from local storage
-    // Removed initial notice related to API key, app is ready to use directly
+    const unsubscribe = onAuthChange((user) => {
+      setCurrentUser(user);
+    });
     setNotice("Welcome to NDResells! Upload an image to get started.");
+    return () => unsubscribe();
   }, []);
 
   // handleSaveSettings and toggleSettings are no longer needed
@@ -117,11 +120,28 @@ const App: React.FC = () => {
     }
   };
 
-  const NavButton: React.FC<{ children: React.ReactNode, icon?: string, onClick?: () => void, isActive?: boolean }> = ({ children, icon, onClick, isActive }) => (
+  const handleLoginSuccess = () => {
+    // Any actions to take after successful login, if needed
+  };
+
+  const handleLogout = async () => {
+    setIsLoggingOut(true);
+    try {
+      await logout();
+    } catch (err) {
+      console.error('Error during logout:', err);
+      setError(err instanceof Error ? err.message : 'Failed to logout.');
+    } finally {
+      setIsLoggingOut(false);
+    }
+  };
+
+  const NavButton: React.FC<{ children: React.ReactNode, icon?: string, onClick?: () => void, isActive?: boolean, disabled?: boolean }> = ({ children, icon, onClick, isActive, disabled }) => (
     <button
       onClick={onClick}
+      disabled={disabled}
       className={`flex items-center px-4 py-2 text-sm font-medium rounded-lg transition-all duration-150 ease-in-out transform
-                  ${isActive ? 'bg-sky-600 text-white scale-100 shadow-sm' : 'text-slate-300 hover:bg-slate-700 hover:text-slate-100 active:scale-95 active:bg-slate-600'}`}
+                  ${isActive ? 'bg-sky-600 text-white scale-100 shadow-sm' : disabled ? 'bg-slate-600 text-slate-400 cursor-not-allowed' : 'text-slate-300 hover:bg-slate-700 hover:text-slate-100 active:scale-95 active:bg-slate-600'}`}
     >
       {icon && <Icon path={icon} className="w-5 h-5 mr-2" />}
       {children}
@@ -153,16 +173,17 @@ const App: React.FC = () => {
     }
 
     if (showResultsInPanel) {
-      if (analysisResult) {
-        return (
-          <ResultDisplay
-            analysisResult={analysisResult}
-            isLoading={false}
-            error={error && analysisResult ? error : null} 
-            groundingMetadata={groundingMetadata}
-          />
-        );
-      }
+        if (analysisResult) {
+          return (
+            <ResultDisplay
+              analysisResult={analysisResult}
+              isLoading={false}
+              error={error && analysisResult ? error : null} 
+              groundingMetadata={groundingMetadata}
+              imageData={base64ImageData || ''}
+            />
+          );
+        }
       if (error && !analysisResult) { 
         return (
           <div className="p-5 h-full flex flex-col justify-center items-center">
@@ -211,6 +232,10 @@ const App: React.FC = () => {
     );
   };
 
+  if (!currentUser) {
+    return <LoginScreen onLoginSuccess={handleLoginSuccess} />;
+  }
+
   return (
     <div className="min-h-screen bg-slate-900 flex flex-col items-center text-slate-200 selection:bg-sky-500 selection:text-white">
       <header className="w-full bg-slate-800/80 backdrop-blur-md border-b border-slate-700 sticky top-0 z-30">
@@ -221,79 +246,93 @@ const App: React.FC = () => {
               <span className="ml-2 text-xl font-bold text-slate-100">NDResells</span>
             </div>
             <nav className="flex space-x-2 sm:space-x-4">
-              <NavButton icon={AnalyzeItemIconPath} isActive={true}>Analyze Item</NavButton>
-              <NavButton icon={HistoryIconPath} onClick={() => alert("History feature coming soon!")}>History</NavButton>
-               {/* Settings button is removed from header as API key is server-side */}
+              <NavButton icon={AnalyzeItemIconPath} isActive={!showHistory} onClick={() => setShowHistory(false)}>Analyze Item</NavButton>
+              <NavButton icon={HistoryIconPath} isActive={showHistory} onClick={() => setShowHistory(true)}>History</NavButton>
+              {currentUser ? (
+                <NavButton onClick={handleLogout} disabled={isLoggingOut}>
+                  {isLoggingOut ? 'Logging Out...' : 'Logout'}
+                </NavButton>
+              ) : (
+                <NavButton onClick={() => { /* No action needed as LoginScreen is shown by default */ }}>
+                  Login
+                </NavButton>
+              )}
             </nav>
           </div>
         </div>
       </header>
 
       <main className="w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 sm:py-12 flex-grow">
-        <section className="text-center mb-12 sm:mb-16">
-          <h1 className="text-4xl sm:text-5xl lg:text-6xl font-extrabold tracking-tight text-slate-100">
-            Scan. Identify. <span className="text-sky-400">Resell.</span>
-          </h1>
-          <p className="mt-4 text-lg sm:text-xl text-slate-400 max-w-3xl mx-auto">
-            NDResells uses AI to help you identify items from images, discover comparable listings, and estimate their resale potential.
-          </p>
-        </section>
+        {showHistory ? (
+          <HistoryPage onBack={() => setShowHistory(false)} />
+        ) : (
+          <>
+            <section className="text-center mb-12 sm:mb-16">
+              <h1 className="text-4xl sm:text-5xl lg:text-6xl font-extrabold tracking-tight text-slate-100">
+                Scan. Identify. <span className="text-sky-400">Resell.</span>
+              </h1>
+              <p className="mt-4 text-lg sm:text-xl text-slate-400 max-w-3xl mx-auto">
+                NDResells uses AI to help you identify items from images, discover comparable listings, and estimate their resale potential.
+              </p>
+            </section>
 
-        <section className="grid grid-cols-1 md:grid-cols-2 gap-8 sm:gap-12 items-start">
-          <ImageUploader 
-            onImageSelected={handleImageSelected} 
-            onClear={handleClear}
-            onAnalyze={handleAnalyze}
-            isLoading={isProcessingImage} 
-            isAnalyzing={isLoading && !!base64ImageData} 
-            imageAvailable={!!base64ImageData}
-          />
-          
-          <div className="p-1 bg-slate-800 shadow-xl rounded-xl border border-slate-700 flex flex-col justify-center items-center min-h-[400px] md:min-h-full animate-fadeIn md:mt-0 mt-8 overflow-auto" style={{animationDelay: '0.1s'}}>
-            {renderRightPanelContent()}
-          </div>
-        </section>
+            <section className="grid grid-cols-1 md:grid-cols-2 gap-8 sm:gap-12 items-start">
+              <ImageUploader 
+                onImageSelected={handleImageSelected} 
+                onClear={handleClear}
+                onAnalyze={handleAnalyze}
+                isLoading={isProcessingImage} 
+                isAnalyzing={isLoading && !!base64ImageData} 
+                imageAvailable={!!base64ImageData}
+              />
+              
+              <div className="p-1 bg-slate-800 shadow-xl rounded-xl border border-slate-700 flex flex-col justify-center items-center min-h-[400px] md:min-h-full animate-fadeIn md:mt-0 mt-8 overflow-auto" style={{animationDelay: '0.1s'}}>
+                {renderRightPanelContent()}
+              </div>
+            </section>
 
-        <section className="mt-12 sm:mt-16 grid grid-cols-1 md:grid-cols-3 gap-6 sm:gap-8">
-            <FeatureHighlightCard
-                iconPath={AiRecognitionIconSymbolPath}
-                iconBgColor="bg-green-500/20"
-                iconColor="text-green-400"
-                title="AI-Powered Recognition"
-                description="Advanced AI identifies items from photos with high accuracy."
-                animationDelay="0.2s"
-            />
-            <FeatureHighlightCard
-                iconPath={MarketAnalysisIconSymbolPath}
-                iconBgColor="bg-sky-500/20"
-                iconColor="text-sky-400"
-                title="Market Analysis"
-                description="Get comparable listings and current market prices."
-                animationDelay="0.3s"
-            />
-            <FeatureHighlightCard
-                iconPath={ResaleInsightsIconSymbolPath}
-                iconBgColor="bg-purple-500/20"
-                iconColor="text-purple-400"
-                title="Resale Insights"
-                description="Estimate potential profit and selling strategies."
-                animationDelay="0.4s"
-            />
-        </section>
-        
-        {notice && !base64ImageData && !error && !isLoading && ( 
-             <div className={`mt-10 p-4 sm:p-5 rounded-xl shadow-lg animate-fadeIn text-sm bg-sky-900/30 border border-sky-700 text-sky-300`}>
-                <div className="flex items-center">
-                    <Icon 
-                      path={"M11.25 11.25l.041-.02a.75.75 0 011.063.852l-.708 2.836a.75.75 0 001.063.853l.041-.021M21 12a9 9 0 11-18 0 9 9 0 0118 0zm-9-3.75h.008v.008H12V8.25z"} 
-                      className={`w-6 h-6 mr-3 text-sky-400`} 
-                    />
-                    <div>
-                        <h3 className={`font-semibold text-lg text-sky-300`}>Notice</h3>
-                        <p className="whitespace-pre-wrap">{notice}</p>
+            <section className="mt-12 sm:mt-16 grid grid-cols-1 md:grid-cols-3 gap-6 sm:gap-8">
+                <FeatureHighlightCard
+                    iconPath={AiRecognitionIconSymbolPath}
+                    iconBgColor="bg-green-500/20"
+                    iconColor="text-green-400"
+                    title="AI-Powered Recognition"
+                    description="Advanced AI identifies items from photos with high accuracy."
+                    animationDelay="0.2s"
+                />
+                <FeatureHighlightCard
+                    iconPath={MarketAnalysisIconSymbolPath}
+                    iconBgColor="bg-sky-500/20"
+                    iconColor="text-sky-400"
+                    title="Market Analysis"
+                    description="Get comparable listings and current market prices."
+                    animationDelay="0.3s"
+                />
+                <FeatureHighlightCard
+                    iconPath={ResaleInsightsIconSymbolPath}
+                    iconBgColor="bg-purple-500/20"
+                    iconColor="text-purple-400"
+                    title="Resale Insights"
+                    description="Estimate potential profit and selling strategies."
+                    animationDelay="0.4s"
+                />
+            </section>
+            
+            {notice && !base64ImageData && !error && !isLoading && ( 
+                 <div className={`mt-10 p-4 sm:p-5 rounded-xl shadow-lg animate-fadeIn text-sm bg-sky-900/30 border border-sky-700 text-sky-300`}>
+                    <div className="flex items-center">
+                        <Icon 
+                          path={"M11.25 11.25l.041-.02a.75.75 0 011.063.852l-.708 2.836a.75.75 0 001.063.853l.041-.021M21 12a9 9 0 11-18 0 9 9 0 0118 0zm-9-3.75h.008v.008H12V8.25z"} 
+                          className={`w-6 h-6 mr-3 text-sky-400`} 
+                        />
+                        <div>
+                            <h3 className={`font-semibold text-lg text-sky-300`}>Notice</h3>
+                            <p className="whitespace-pre-wrap">{notice}</p>
+                        </div>
                     </div>
                 </div>
-            </div>
+            )}
+          </>
         )}
       </main>
 

@@ -49,5 +49,8 @@ export const MarketAnalysisIconSymbolPath = PriceTagIconPath;
 // Resale Insights Icon (e.g., a trending chart or cycle arrows)
 export const ResaleInsightsIconSymbolPath = "M15 12a3 3 0 11-6 0 3 3 0 016 0z M21.188 10.138A9.001 9.001 0 0112 21a9.001 9.001 0 01-9.188-10.862 9 9 0 0118.376 0zM12 1.5A10.5 10.5 0 001.5 12c0 .85.103 1.674.295 2.461A.75.75 0 011.5 15a.75.75 0 01.75-.75A9.004 9.004 0 013 12a9 9 0 1115.188-6.862.75.75 0 111.312-.776A10.47 10.47 0 0012 1.5z";
 
+// Save Icon (e.g., a floppy disk or download symbol)
+export const SaveIconPath = "M7.5 3.75A1.5 1.5 0 009 2.25h6a1.5 1.5 0 001.5 1.5v1.085c.317.084.583.238.784.406l2.65 2.122A1.5 1.5 0 0021 7.5v12.75a1.5 1.5 0 01-1.5 1.5h-15a1.5 1.5 0 01-1.5-1.5V7.5a1.5 1.5 0 01.066-.647l2.65-2.122c.2-.168.466-.322.784-.406V3.75zM16.5 18.75a1.5 1.5 0 01-3 0v-6a1.5 1.5 0 013 0v6zM9.75 15.75L7.5 18h9l-2.25-2.25M6 6.75h12v-1.5H6v1.5z";
+
 
 export default Icon;

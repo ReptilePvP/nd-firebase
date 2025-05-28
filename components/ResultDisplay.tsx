@@ -1,12 +1,15 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { ProductAnalysisResult, GroundingMetadata, GroundingChunkWeb } from '../types'; 
-import Icon, { SparklesIconPath, LightBulbIconPath, PriceTagIconPath } from './Icon'; 
+import Icon, { SparklesIconPath, LightBulbIconPath, PriceTagIconPath, SaveIconPath } from './Icon'; 
+import { saveAnalysisResult, AnalysisResult } from '../services/firebaseService';
+import { getCurrentUser } from '../services/firebaseService';
 
 interface ResultDisplayProps {
   analysisResult: ProductAnalysisResult | null;
   isLoading: boolean;
   error: string | null;
   groundingMetadata?: GroundingMetadata | null; 
+  imageData?: string;
 }
 
 const ResultDisplay: React.FC<ResultDisplayProps> = ({
@@ -14,7 +17,39 @@ const ResultDisplay: React.FC<ResultDisplayProps> = ({
   isLoading,
   error,
   groundingMetadata,
+  imageData
 }) => {
+  const [isSaving, setIsSaving] = useState(false);
+  const [saveMessage, setSaveMessage] = useState<string | null>(null);
+
+  const handleSaveResults = async () => {
+    if (!analysisResult) return;
+    const currentUser = getCurrentUser();
+    if (!currentUser) {
+      setSaveMessage("You must be logged in to save results.");
+      return;
+    }
+
+    setIsSaving(true);
+    setSaveMessage(null);
+    try {
+      const resultToSave: AnalysisResult = {
+        userId: currentUser.uid,
+        productName: analysisResult.productName || "Unnamed Product",
+        description: analysisResult.description || "No description available.",
+        averageSalePrice: analysisResult.averageSalePrice || "Unknown",
+        resellPrice: analysisResult.resellPrice || "Unknown",
+        timestamp: Date.now()
+      };
+      await saveAnalysisResult(resultToSave, imageData);
+      setSaveMessage("Results saved successfully!");
+    } catch (err) {
+      console.error("Error saving results:", err);
+      setSaveMessage("Failed to save results. Please try again.");
+    } finally {
+      setIsSaving(false);
+    }
+  };
   if (isLoading) {
     return null; 
   }
@@ -40,9 +75,10 @@ const ResultDisplay: React.FC<ResultDisplayProps> = ({
   let webSources: GroundingChunkWeb[] = [];
   if (groundingMetadata?.groundingChunks) {
     webSources = groundingMetadata.groundingChunks.reduce((acc, chunk) => {
-      if (chunk.web && chunk.web.uri) {
-        if (!acc.find(src => src.uri === chunk.web.uri)) {
-          acc.push(chunk.web);
+      const web = chunk.web;
+      if (web && web.uri) {
+        if (!acc.find(src => src.uri === web.uri)) {
+          acc.push(web);
         }
       }
       return acc;
@@ -65,17 +101,17 @@ const ResultDisplay: React.FC<ResultDisplayProps> = ({
         </div>
       )}
 
-      {analysisResult && (
-        <>
-          {productName && (
-            <div className={`${cardBaseClass} product-name-card`}>
-              <div className="flex items-center mb-3">
-                <Icon path={LightBulbIconPath} className="w-8 h-8 mr-3.5 text-sky-400" />
-                <h3 className="text-3xl font-semibold text-slate-100">{productName}</h3>
-              </div>
-               <p className="text-sm text-sky-500 pl-[46px] -mt-2">Best Identified Match</p>
-            </div>
-          )}
+          {analysisResult && (
+            <>
+              {productName && (
+                <div className={`${cardBaseClass} product-name-card`}>
+                  <div className="flex items-center mb-3">
+                    <Icon path={LightBulbIconPath} className="w-8 h-8 mr-3.5 text-sky-400" />
+                    <h3 className="text-3xl font-semibold text-slate-100">{productName}</h3>
+                  </div>
+                  <p className="text-sm text-sky-500 pl-[46px] -mt-2">Best Identified Match</p>
+                </div>
+              )}
 
           {description && (
             <div className={`${cardBaseClass} description-card`}>
@@ -145,6 +181,24 @@ const ResultDisplay: React.FC<ResultDisplayProps> = ({
                     <h3 className="text-xl font-semibold text-slate-100">Related Web Links</h3>
                 </div>
                 <p className="text-slate-400 pl-[40px]">No specific web links were found by the AI for this item using its search tool.</p>
+             </div>
+           )}
+           
+           {analysisResult && getCurrentUser() && (
+             <div className="mt-6 flex flex-col items-center">
+               <button
+                 onClick={handleSaveResults}
+                 disabled={isSaving}
+                 className={`flex items-center px-6 py-3 text-lg font-medium rounded-lg transition-all duration-150 ease-in-out transform ${
+                   isSaving ? 'bg-slate-600 text-slate-400 cursor-not-allowed' : 'bg-sky-600 text-white hover:bg-sky-700 active:scale-95 active:bg-sky-800'
+                 }`}
+               >
+                 <Icon path={SaveIconPath} className="w-6 h-6 mr-2" />
+                 {isSaving ? 'Saving...' : 'Save Analyze Results'}
+               </button>
+               {saveMessage && (
+                 <p className={`mt-2 text-sm ${saveMessage.includes('success') ? 'text-green-400' : 'text-red-400'}`}>{saveMessage}</p>
+               )}
              </div>
            )}
         </>
