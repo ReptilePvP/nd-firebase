@@ -41,13 +41,21 @@ const ResultDisplay: React.FC<ResultDisplayProps> = ({
         resellPrice: analysisResult.resellPrice || "Unknown",
         timestamp: Date.now()
       };
-      await saveAnalysisResult(resultToSave, imageData);
+      // Set a timeout for the entire save operation to allow more time for completion
+      const savePromise = saveAnalysisResult(resultToSave, imageData);
+      const timeoutPromise = new Promise((_, reject) => {
+        setTimeout(() => reject(new Error('Save operation timed out after 20 seconds')), 20000);
+      });
+      await Promise.race([savePromise, timeoutPromise]);
       setSaveMessage("Results saved successfully!");
     } catch (err) {
       console.error("Error saving results:", err);
-      setSaveMessage("Failed to save results. Please try again.");
+      setSaveMessage(`Failed to save results: ${err instanceof Error ? err.message : String(err)}. Please try again.`);
     } finally {
-      setIsSaving(false);
+      // Ensure the save message is visible for at least 3 seconds before resetting
+      setTimeout(() => {
+        setIsSaving(false);
+      }, 3000);
     }
   };
   if (isLoading) {

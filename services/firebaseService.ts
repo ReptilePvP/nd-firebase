@@ -3,8 +3,8 @@ import { getAuth, createUserWithEmailAndPassword, signInWithEmailAndPassword, si
 
 // Re-export User type for use in other components
 export type { User } from 'firebase/auth';
-import { getFirestore, collection, doc, setDoc, getDoc, query, where, orderBy, getDocs } from 'firebase/firestore';
-import { getStorage, ref, uploadString, getDownloadURL } from 'firebase/storage';
+import { getFirestore, collection, doc, setDoc, getDoc, query, where, orderBy, getDocs, deleteDoc, serverTimestamp } from 'firebase/firestore';
+import { getStorage, ref, uploadString, getDownloadURL, deleteObject } from 'firebase/storage';
 
 // Firebase configuration
 // TODO: Replace with your Firebase project configuration
@@ -171,16 +171,31 @@ export const saveAnalysisResult = async (result: AnalysisResult, imageData?: str
     const resultRef = doc(collection(db, 'analysisResults'));
     let imageUrl = '';
     if (imageData) {
-      const imageRef = ref(storage, `analysisImages/${resultRef.id}`);
-      await uploadString(imageRef, imageData, 'data_url');
-      imageUrl = await getDownloadURL(imageRef);
+      // Check if imageData matches the expected data URL format
+      if (imageData.startsWith('data:')) {
+        const imageRef = ref(storage, `analysisImages/${resultRef.id}`);
+        try {
+          await uploadString(imageRef, imageData, 'data_url');
+          imageUrl = await getDownloadURL(imageRef);
+        } catch (uploadError) {
+          console.error('Error uploading image:', uploadError);
+          // Continue with saving the result even if image upload fails
+        }
+      } else {
+        console.warn('Image data does not match data URL format, skipping upload:', imageData.substring(0, 50) + (imageData.length > 50 ? '...' : ''));
+      }
     }
-    await setDoc(resultRef, {
+    // Set a timeout for the Firestore operation to allow more time for completion
+    const savePromise = setDoc(resultRef, {
       ...result,
       id: resultRef.id,
       imageUrl: imageUrl || '',
       timestamp: Date.now()
     });
+    const timeoutPromise = new Promise((_, reject) => {
+      setTimeout(() => reject(new Error('Firestore save operation timed out after 20 seconds')), 20000);
+    });
+    await Promise.race([savePromise, timeoutPromise]);
     return resultRef.id;
   } catch (error) {
     console.error('Error saving analysis result:', error);
@@ -197,10 +212,47 @@ export const getUserAnalysisResults = async (userId: string): Promise<AnalysisRe
       orderBy('timestamp', 'desc')
     );
     const querySnapshot = await getDocs(q);
-    return querySnapshot.docs.map(doc => doc.data() as AnalysisResult);
+    return querySnapshot.docs.map(doc => {
+      const data = doc.data();
+      // Convert Firestore Timestamp to number (milliseconds since epoch)
+      if (data.timestamp && typeof data.timestamp.toDate === 'function') {
+        data.timestamp = data.timestamp.toDate().getTime();
+      }
+      return data as AnalysisResult;
+    });
   } catch (error) {
     console.error('Error getting user analysis results:', error);
     return [];
+  }
+};
+
+// Function to clear user's saved analysis history
+export const clearUserAnalysisHistory = async (userId: string): Promise<void> => {
+  try {
+    const q = query(
+      collection(db, 'analysisResults'),
+      where('userId', '==', userId)
+    );
+    const querySnapshot = await getDocs(q);
+    const deletePromises = querySnapshot.docs.map(async (doc) => {
+      const data = doc.data() as AnalysisResult;
+      // Delete associated image from Firebase Storage if it exists
+      if (data.imageUrl) {
+        try {
+          const imageRef = ref(storage, `analysisImages/${doc.id}`);
+          await deleteObject(imageRef);
+        } catch (storageError) {
+          console.error(`Error deleting image for analysis ${doc.id}:`, storageError);
+          // Continue with deletion even if image deletion fails
+        }
+      }
+      // Delete the Firestore document
+      await deleteDoc(doc.ref);
+    });
+    await Promise.all(deletePromises);
+  } catch (error) {
+    console.error('Error clearing user analysis history:', error);
+    throw error;
   }
 };
 
