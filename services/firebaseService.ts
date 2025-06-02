@@ -3,7 +3,7 @@ import { getAuth, createUserWithEmailAndPassword, signInWithEmailAndPassword, si
 
 // Re-export User type for use in other components
 export type { User } from 'firebase/auth';
-import { getFirestore, collection, doc, setDoc, getDoc, query, where, orderBy, getDocs, deleteDoc, serverTimestamp } from 'firebase/firestore';
+import { getFirestore, collection, doc, setDoc, getDoc, query, where, orderBy, getDocs, deleteDoc } from 'firebase/firestore';
 import { getStorage, ref, uploadString, getDownloadURL, deleteObject } from 'firebase/storage';
 
 // Firebase configuration
@@ -167,16 +167,20 @@ export interface AnalysisResult {
 
 // Function to save analysis results
 export const saveAnalysisResult = async (result: AnalysisResult, imageData?: string) => {
+  console.log("saveAnalysisResult called with result:", result);
   try {
     const resultRef = doc(collection(db, 'analysisResults'));
+    console.log("Firestore document reference created:", resultRef.id);
     let imageUrl = '';
     if (imageData) {
       // Check if imageData matches the expected data URL format
       if (imageData.startsWith('data:')) {
         const imageRef = ref(storage, `analysisImages/${resultRef.id}`);
         try {
+          console.log("Attempting image upload to Storage...");
           await uploadString(imageRef, imageData, 'data_url');
           imageUrl = await getDownloadURL(imageRef);
+          console.log("Image uploaded, URL:", imageUrl);
         } catch (uploadError) {
           console.error('Error uploading image:', uploadError);
           // Continue with saving the result even if image upload fails
@@ -192,10 +196,12 @@ export const saveAnalysisResult = async (result: AnalysisResult, imageData?: str
       imageUrl: imageUrl || '',
       timestamp: Date.now()
     });
+    console.log("Attempting to save document to Firestore...");
     const timeoutPromise = new Promise((_, reject) => {
-      setTimeout(() => reject(new Error('Firestore save operation timed out after 20 seconds')), 20000);
+      setTimeout(() => reject(new Error('Firestore save operation timed out after 60 seconds')), 60000);
     });
     await Promise.race([savePromise, timeoutPromise]);
+    console.log("Document saved successfully to Firestore.");
     return resultRef.id;
   } catch (error) {
     console.error('Error saving analysis result:', error);
@@ -252,6 +258,39 @@ export const clearUserAnalysisHistory = async (userId: string): Promise<void> =>
     await Promise.all(deletePromises);
   } catch (error) {
     console.error('Error clearing user analysis history:', error);
+    throw error;
+  }
+};
+
+// Function to submit AI feedback
+export const submitAiFeedback = async (userId: string, analysisResult: AnalysisResult, feedbackType: 'correct' | 'incorrect', feedbackText?: string, imageData?: string, groundingMetadata?: any) => {
+  try {
+    const feedbackRef = doc(collection(db, 'ai_feedback'));
+    let imageUrl = '';
+    if (imageData && imageData.startsWith('data:')) {
+      const imageRef = ref(storage, `feedbackImages/${feedbackRef.id}`);
+      try {
+        await uploadString(imageRef, imageData, 'data_url');
+        imageUrl = await getDownloadURL(imageRef);
+      } catch (uploadError) {
+        console.error('Error uploading feedback image:', uploadError);
+        // Continue with saving the feedback even if image upload fails
+      }
+    }
+    const feedbackData = {
+      id: feedbackRef.id,
+      userId,
+      analysisResult,
+      feedbackType,
+      feedbackText: feedbackText || '',
+      imageUrl: imageUrl || '',
+      groundingMetadata: groundingMetadata || null,
+      timestamp: Date.now()
+    };
+    await setDoc(feedbackRef, feedbackData);
+    return feedbackRef.id;
+  } catch (error) {
+    console.error('Error submitting AI feedback:', error);
     throw error;
   }
 };

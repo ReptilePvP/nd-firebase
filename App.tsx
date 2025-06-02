@@ -246,7 +246,12 @@ const App: React.FC = () => {
               <span className="ml-2 text-xl font-bold text-slate-100">NDResells</span>
             </div>
             <nav className="flex space-x-2 sm:space-x-4">
-              <NavButton icon={AnalyzeItemIconPath} isActive={!showHistory} onClick={() => setShowHistory(false)}>Analyze Item</NavButton>
+              <NavButton icon={AnalyzeItemIconPath} isActive={!showHistory} onClick={() => {
+                setShowHistory(false);
+                if (showHistory) {
+                  handleClear();
+                }
+              }}>Analyze Item</NavButton>
               <NavButton icon={HistoryIconPath} isActive={showHistory} onClick={() => setShowHistory(true)}>History</NavButton>
               {currentUser ? (
                 <NavButton onClick={handleLogout} disabled={isLoggingOut}>

@@ -5,7 +5,7 @@ import * as logger from "firebase-functions/logger";
 // from a shared location if your build process supports it.
 
 // These would typically come from a constants.ts file in the functions directory
-const GEMINI_MODEL = 'gemini-2.5-flash-preview-04-17';
+const GEMINI_MODEL = 'gemini-2.5-flash-preview-05-20';
 const SYSTEM_PROMPT_PRODUCT_ANALYSIS = `You are an expert product analyst. Analyze the provided image to identify the specific product.
 Your goal is to return a single, valid JSON object with the following structure and content:
 {
@@ -50,18 +50,23 @@ export interface Candidate {
 
 export const analyzeImageWithGeminiServerSide = async (
   apiKey: string,
-  base64ImageData: string,
+  base64ImageData: string, // This now contains the data: prefix
   imageMimeType: string
 ): Promise<{ analysis: ProductAnalysisResult | null; candidates?: Candidate[]; error?: string; notice?: string }> => {
-  
+
   // API Key presence is checked in the main function index.ts
   const ai = new GoogleGenAI({ apiKey });
 
   try {
+    // Strip the "data:image/jpeg;base64," prefix if present, as Gemini expects raw base64
+    const rawBase64Data = base64ImageData.startsWith('data:')
+      ? base64ImageData.split(',')[1]
+      : base64ImageData;
+
     const imagePart = {
       inlineData: {
         mimeType: imageMimeType,
-        data: base64ImageData,
+        data: rawBase64Data, // Use the raw base64 data here
       },
     };
     const textPart = { text: "Analyze the product in this image according to your instructions." };

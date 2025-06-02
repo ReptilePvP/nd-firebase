@@ -40,7 +40,7 @@ const logger = __importStar(require("firebase-functions/logger"));
 // For simplicity, using direct values here or you might structure to import
 // from a shared location if your build process supports it.
 // These would typically come from a constants.ts file in the functions directory
-const GEMINI_MODEL = 'gemini-2.5-flash-preview-04-17';
+const GEMINI_MODEL = 'gemini-2.5-flash-preview-05-20';
 const SYSTEM_PROMPT_PRODUCT_ANALYSIS = `You are an expert product analyst. Analyze the provided image to identify the specific product.
 Your goal is to return a single, valid JSON object with the following structure and content:
 {
@@ -52,14 +52,19 @@ Your goal is to return a single, valid JSON object with the following structure 
 Focus on the primary product in the image. If multiple distinct products are clearly identifiable as primary, you may focus on the most prominent one or list them if the JSON structure can be adapted (though the current request is for a single object).
 Ensure the output is ONLY the JSON object. Do not include any markdown formatting like \`\`\`json or explanatory text before or after the JSON.
 Utilize web search capabilities if available to gather accurate information for pricing and product details.`;
-const analyzeImageWithGeminiServerSide = async (apiKey, base64ImageData, imageMimeType) => {
+const analyzeImageWithGeminiServerSide = async (apiKey, base64ImageData, // This now contains the data: prefix
+imageMimeType) => {
     // API Key presence is checked in the main function index.ts
     const ai = new genai_1.GoogleGenAI({ apiKey });
     try {
+        // Strip the "data:image/jpeg;base64," prefix if present, as Gemini expects raw base64
+        const rawBase64Data = base64ImageData.startsWith('data:')
+            ? base64ImageData.split(',')[1]
+            : base64ImageData;
         const imagePart = {
             inlineData: {
                 mimeType: imageMimeType,
-                data: base64ImageData,
+                data: rawBase64Data, // Use the raw base64 data here
             },
         };
         const textPart = { text: "Analyze the product in this image according to your instructions." };

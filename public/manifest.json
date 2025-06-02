@@ -1,0 +1,17 @@
+{
+  "name": "NDResells",
+  "short_name": "NDResells",
+  "description": "AI-powered product analysis for resale insights",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#020617",
+  "theme_color": "#020617",
+  "icons": [
+    {
+      "src": "/icons/icon-192x192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ]
+}

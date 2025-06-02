@@ -68,18 +68,18 @@ const ImageUploader: React.FC<ImageUploaderProps> = ({ onImageSelected, onClear,
             }
             
             ctx.drawImage(tempImage, 0, 0, width, height);
-            const dataUrl = canvas.toDataURL('image/jpeg', 0.9); 
+            const dataUrl = canvas.toDataURL('image/jpeg', 0.9);
             setPreviewUrl(dataUrl);
-            const base64Data = dataUrl.split(',')[1];
+            // Pass the full dataUrl (including prefix) to onImageSelected
             
             canvas.toBlob(blob => {
               if (blob) {
                 const convertedFile = new File([blob], file.name.substring(0, file.name.lastIndexOf('.')) + ".jpg" || "converted.jpg", { type: 'image/jpeg' });
                 setSelectedFile(convertedFile);
-                onImageSelected(convertedFile, base64Data, 'image/jpeg');
+                onImageSelected(convertedFile, dataUrl, 'image/jpeg'); // Pass dataUrl instead of base64Data
               } else {
                 setProcessingError("Failed to convert image to blob.");
-                onImageSelected(file, base64Data, 'image/jpeg'); // Fallback
+                onImageSelected(file, dataUrl, 'image/jpeg'); // Fallback, pass dataUrl
               }
             }, 'image/jpeg', 0.9);
 
@@ -100,7 +100,7 @@ const ImageUploader: React.FC<ImageUploaderProps> = ({ onImageSelected, onClear,
         handleClearInternal();
       };
       reader.readAsDataURL(file);
-      stopCamera(); 
+      stopCamera();
     }
   };
 
@@ -111,9 +111,9 @@ const ImageUploader: React.FC<ImageUploaderProps> = ({ onImageSelected, onClear,
       if (videoRef.current) {
         videoRef.current.srcObject = stream;
         setIsCameraOpen(true);
-        setPreviewUrl(null); 
+        setPreviewUrl(null);
         setSelectedFile(null);
-        onClear(); 
+        onClear();
       }
     } catch (err) {
       console.error("Error accessing camera:", err);
@@ -142,7 +142,7 @@ const ImageUploader: React.FC<ImageUploaderProps> = ({ onImageSelected, onClear,
       setProcessingError(null);
       const video = videoRef.current;
       const canvas = canvasRef.current;
-      
+
       try {
         canvas.width = video.videoWidth;
         canvas.height = video.videoHeight;
@@ -152,15 +152,14 @@ const ImageUploader: React.FC<ImageUploaderProps> = ({ onImageSelected, onClear,
           return;
         }
         context.drawImage(video, 0, 0, canvas.width, canvas.height);
-        const dataUrl = canvas.toDataURL('image/jpeg', 0.9); 
+        const dataUrl = canvas.toDataURL('image/jpeg', 0.9);
         setPreviewUrl(dataUrl);
-        
+
         canvas.toBlob(blob => {
           if (blob) {
             const capturedFile = new File([blob], "capture.jpg", { type: "image/jpeg" });
             setSelectedFile(capturedFile);
-            const base64Data = dataUrl.split(',')[1];
-            onImageSelected(capturedFile, base64Data, "image/jpeg");
+            onImageSelected(capturedFile, dataUrl, "image/jpeg"); // Pass dataUrl instead of base64Data
           } else {
              setProcessingError("Failed to create blob from capture.");
           }

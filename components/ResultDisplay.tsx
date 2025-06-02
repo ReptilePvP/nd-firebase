@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { ProductAnalysisResult, GroundingMetadata, GroundingChunkWeb } from '../types'; 
 import Icon, { SparklesIconPath, LightBulbIconPath, PriceTagIconPath, SaveIconPath } from './Icon'; 
-import { saveAnalysisResult, AnalysisResult } from '../services/firebaseService';
+import { saveAnalysisResult, AnalysisResult, submitAiFeedback } from '../services/firebaseService';
 import { getCurrentUser } from '../services/firebaseService';
 
 interface ResultDisplayProps {
@@ -21,6 +21,10 @@ const ResultDisplay: React.FC<ResultDisplayProps> = ({
 }) => {
   const [isSaving, setIsSaving] = useState(false);
   const [saveMessage, setSaveMessage] = useState<string | null>(null);
+  const [feedbackType, setFeedbackType] = useState<'none' | 'correct' | 'incorrect'>('none');
+  const [feedbackText, setFeedbackText] = useState<string>('');
+  const [isSubmittingFeedback, setIsSubmittingFeedback] = useState(false);
+  const [feedbackMessage, setFeedbackMessage] = useState<string | null>(null);
 
   const handleSaveResults = async () => {
     if (!analysisResult) return;
@@ -33,12 +37,26 @@ const ResultDisplay: React.FC<ResultDisplayProps> = ({
     setIsSaving(true);
     setSaveMessage(null);
     try {
+      // Define maximum lengths for Firestore fields to prevent "400 Bad Request" errors
+      const MAX_PRODUCT_NAME_LENGTH = 200;
+      const MAX_DESCRIPTION_LENGTH = 10000; 
+      const MAX_PRICE_STRING_LENGTH = 200;
+
+      const safeProductName = (analysisResult.productName || "Unnamed Product").substring(0, MAX_PRODUCT_NAME_LENGTH);
+      let tempDescription = (analysisResult.description || "No description available.").substring(0, MAX_DESCRIPTION_LENGTH);
+      // Sanitize description to remove bracketed content like [1, 2, 3] or [ref] and other special characters which may cause Firestore issues
+      // Replace any character that is not alphanumeric, basic punctuation, or whitespace with a space
+      tempDescription = tempDescription.replace(/[^a-zA-Z0-9\s.,!?-]/g, ' ').replace(/\s+/g, ' ').trim();
+      const safeDescription = tempDescription;
+      const safeAverageSalePrice = (analysisResult.averageSalePrice || "Unknown").substring(0, MAX_PRICE_STRING_LENGTH);
+      const safeResellPrice = (analysisResult.resellPrice || "Unknown").substring(0, MAX_PRICE_STRING_LENGTH);
+
       const resultToSave: AnalysisResult = {
         userId: currentUser.uid,
-        productName: analysisResult.productName || "Unnamed Product",
-        description: analysisResult.description || "No description available.",
-        averageSalePrice: analysisResult.averageSalePrice || "Unknown",
-        resellPrice: analysisResult.resellPrice || "Unknown",
+        productName: safeProductName,
+        description: safeDescription,
+        averageSalePrice: safeAverageSalePrice,
+        resellPrice: safeResellPrice,
         timestamp: Date.now()
       };
       // Set a timeout for the entire save operation to allow more time for completion
@@ -55,6 +73,45 @@ const ResultDisplay: React.FC<ResultDisplayProps> = ({
       // Ensure the save message is visible for at least 3 seconds before resetting
       setTimeout(() => {
         setIsSaving(false);
+      }, 3000);
+    }
+  };
+
+  const handleSubmitFeedback = async () => {
+    if (!analysisResult || feedbackType === 'none') return;
+    const currentUser = getCurrentUser();
+    if (!currentUser) {
+      setFeedbackMessage("You must be logged in to submit feedback.");
+      return;
+    }
+
+    setIsSubmittingFeedback(true);
+    setFeedbackMessage(null);
+    try {
+      const feedbackResult = await submitAiFeedback(
+        currentUser.uid,
+        {
+          userId: currentUser.uid,
+          productName: analysisResult.productName || "Unnamed Product",
+          description: analysisResult.description || "No description available.",
+          averageSalePrice: analysisResult.averageSalePrice || "Unknown",
+          resellPrice: analysisResult.resellPrice || "Unknown",
+          timestamp: Date.now()
+        },
+        feedbackType as 'correct' | 'incorrect',
+        feedbackText || undefined,
+        imageData || undefined,
+        groundingMetadata || undefined
+      );
+      setFeedbackMessage("Feedback submitted successfully!");
+      setFeedbackType('none');
+      setFeedbackText('');
+    } catch (err) {
+      console.error("Error submitting feedback:", err);
+      setFeedbackMessage(`Failed to submit feedback: ${err instanceof Error ? err.message : String(err)}. Please try again.`);
+    } finally {
+      setTimeout(() => {
+        setIsSubmittingFeedback(false);
       }, 3000);
     }
   };
@@ -207,6 +264,62 @@ const ResultDisplay: React.FC<ResultDisplayProps> = ({
                {saveMessage && (
                  <p className={`mt-2 text-sm ${saveMessage.includes('success') ? 'text-green-400' : 'text-red-400'}`}>{saveMessage}</p>
                )}
+
+               <div className="mt-4 flex flex-col items-center">
+                 <h4 className="text-md font-medium text-slate-300 mb-2">Was this analysis correct?</h4>
+                 <div className="flex space-x-4">
+                   <button
+                     onClick={() => setFeedbackType('correct')}
+                     className={`px-4 py-2 rounded-md text-sm font-medium transition-all ${
+                       feedbackType === 'correct' ? 'bg-green-600 text-white' : 'bg-slate-700 text-slate-300 hover:bg-slate-600'
+                     }`}
+                   >
+                     Correct
+                   </button>
+                   <button
+                     onClick={() => setFeedbackType('incorrect')}
+                     className={`px-4 py-2 rounded-md text-sm font-medium transition-all ${
+                       feedbackType === 'incorrect' ? 'bg-red-600 text-white' : 'bg-slate-700 text-slate-300 hover:bg-slate-600'
+                     }`}
+                   >
+                     Incorrect
+                   </button>
+                 </div>
+                 {feedbackType === 'incorrect' && (
+                   <div className="mt-3 w-80">
+                     <textarea
+                       value={feedbackText}
+                       onChange={(e) => setFeedbackText(e.target.value)}
+                       placeholder="Please provide details on why this analysis is incorrect..."
+                       className="w-full p-2 bg-slate-800 border border-slate-600 rounded-md text-slate-200 text-sm"
+                       rows={3}
+                     />
+                     <button
+                       onClick={handleSubmitFeedback}
+                       disabled={isSubmittingFeedback}
+                       className={`mt-2 flex items-center px-4 py-2 text-sm font-medium rounded-md transition-all ${
+                         isSubmittingFeedback ? 'bg-slate-600 text-slate-400 cursor-not-allowed' : 'bg-blue-600 text-white hover:bg-blue-700'
+                       }`}
+                     >
+                       {isSubmittingFeedback ? 'Submitting...' : 'Submit Feedback'}
+                     </button>
+                   </div>
+                 )}
+                 {feedbackType === 'correct' && (
+                   <button
+                     onClick={handleSubmitFeedback}
+                     disabled={isSubmittingFeedback}
+                     className={`mt-3 flex items-center px-4 py-2 text-sm font-medium rounded-md transition-all ${
+                       isSubmittingFeedback ? 'bg-slate-600 text-slate-400 cursor-not-allowed' : 'bg-blue-600 text-white hover:bg-blue-700'
+                     }`}
+                   >
+                     {isSubmittingFeedback ? 'Submitting...' : 'Submit Feedback'}
+                   </button>
+                 )}
+                 {feedbackMessage && (
+                   <p className={`mt-2 text-sm ${feedbackMessage.includes('success') ? 'text-green-400' : 'text-red-400'}`}>{feedbackMessage}</p>
+                 )}
+               </div>
              </div>
            )}
         </>
